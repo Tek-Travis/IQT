@@ -1,0 +1,1818 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <title>Internet Quality Test</title>
+
+  <style>
+    :root {
+      --bg: #000000;
+      --panel: rgba(4, 22, 35, 0.88);
+      --panel-deep: rgba(1, 10, 20, 0.96);
+      --white: #ffffff;
+
+      /*
+        One monochromatic palette derived from the Excellent primary:
+        darkest → brightest.
+      */
+      --critical: #07324a;
+      --poor: #0b5572;
+      --fair: #147b9c;
+      --good: #279fbe;
+      --excellent: #66e0ff;
+      --track: #082133;
+      --future: #0b2433;
+      --border: rgba(102, 224, 255, 0.34);
+      --border-strong: rgba(102, 224, 255, 0.78);
+      --shadow: 0 26px 76px rgba(0, 0, 0, 0.80);
+      --radius: 25px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--bg);
+    }
+
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      color: var(--white);
+      background:
+        radial-gradient(circle at 50% -16%, rgba(102, 224, 255, 0.18), transparent 41rem),
+        radial-gradient(circle at 50% 110%, rgba(7, 50, 74, 0.42), transparent 42rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    button,
+    output {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .app {
+      width: min(100%, 960px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: clamp(28px, 6vw, 70px) 18px 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .title {
+      margin: 0;
+      color: var(--white);
+      font-size: clamp(1.9rem, 5vw, 3.45rem);
+      font-weight: 850;
+      line-height: 1.05;
+      letter-spacing: -0.06em;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    .subtitle {
+      margin: 13px 0 0;
+      color: var(--white);
+      font-size: clamp(0.88rem, 2vw, 1rem);
+      font-weight: 650;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .monitor {
+      width: min(100%, 790px);
+      margin-top: clamp(28px, 5vw, 44px);
+      padding: clamp(20px, 5vw, 42px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(180deg, rgba(102, 224, 255, 0.08), transparent 33%),
+        var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .gauge {
+      position: relative;
+      width: min(100%, 660px);
+      margin: 0 auto;
+      aspect-ratio: 1.92 / 1;
+    }
+
+    .gauge-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    /*
+      Every gauge layer uses the exact same semicircle:
+      M 72 272 A 258 258 0 0 1 588 272
+      This prevents any background/segment alignment mismatch.
+    */
+    .gauge-track,
+    .gauge-band {
+      fill: none;
+      stroke-width: 20;
+      stroke-linecap: butt;
+    }
+
+    .gauge-track {
+      stroke: var(--track);
+    }
+
+    .gauge-band {
+      opacity: 0.52;
+      transition: opacity 280ms ease, stroke-width 280ms ease, filter 280ms ease;
+    }
+
+    .gauge-band.active {
+      opacity: 1;
+      stroke-width: 23;
+      stroke-linecap: round;
+      filter: brightness(1.26) drop-shadow(0 0 7px rgba(102, 224, 255, 0.44));
+    }
+
+    .band-critical { stroke: var(--critical); }
+    .band-poor { stroke: var(--poor); }
+    .band-fair { stroke: var(--fair); }
+    .band-good { stroke: var(--good); }
+    .band-excellent { stroke: var(--excellent); }
+
+    .endpoint {
+      fill: var(--white);
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+    }
+
+    .endpoint-right {
+      text-anchor: end;
+    }
+
+    .gauge-tick {
+      stroke: var(--white);
+      stroke-width: 2;
+      stroke-linecap: round;
+      opacity: 0.78;
+    }
+
+    .needle-group {
+      transform-origin: 330px 272px;
+      transform: rotate(-90deg);
+      will-change: transform;
+    }
+
+    .needle {
+      stroke: var(--white);
+      stroke-width: 5;
+      stroke-linecap: round;
+      filter:
+        drop-shadow(0 0 7px rgba(102, 224, 255, 0.95))
+        drop-shadow(0 4px 5px rgba(0, 0, 0, 0.78));
+    }
+
+    .needle-tip {
+      fill: var(--excellent);
+      filter: drop-shadow(0 0 8px rgba(102, 224, 255, 0.95));
+    }
+
+    .needle-hub-outer {
+      fill: rgba(0, 0, 0, 0.75);
+      stroke: var(--white);
+      stroke-width: 3;
+    }
+
+    .needle-hub-inner {
+      fill: var(--critical);
+      stroke: var(--excellent);
+      stroke-width: 2;
+    }
+
+    .gauge-center {
+      position: absolute;
+      z-index: 2;
+      left: 50%;
+      top: 47%;
+      width: 48%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .score {
+      min-width: 2.1ch;
+      color: var(--white);
+      font-size: clamp(4.2rem, 14vw, 7.1rem);
+      font-weight: 880;
+      font-variant-numeric: tabular-nums;
+      line-height: 0.82;
+      letter-spacing: -0.10em;
+      text-align: center;
+      text-shadow: 0 4px 26px rgba(0, 0, 0, 0.90);
+    }
+
+    .quality-word {
+      min-height: 1.25em;
+      margin-top: 12px;
+      color: var(--white);
+      font-size: clamp(0.96rem, 2.8vw, 1.18rem);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      line-height: 1;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .quality-caption {
+      margin-top: 8px;
+      color: var(--white);
+      font-size: clamp(0.62rem, 1.6vw, 0.72rem);
+      font-weight: 850;
+      letter-spacing: 0.15em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .quality-labels {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: 1.45fr 1.1fr 0.9fr 1fr 1.65fr;
+      align-items: start;
+      gap: 3px;
+      width: min(100%, 690px);
+      margin: -5px auto 0;
+      padding: 0 1.5%;
+    }
+
+    .quality-label {
+      color: var(--white);
+      opacity: 0.58;
+      font-size: clamp(0.63rem, 1.8vw, 0.82rem);
+      font-weight: 900;
+      letter-spacing: 0.045em;
+      line-height: 1.15;
+      text-align: center;
+      text-transform: uppercase;
+      transition: opacity 280ms ease, transform 280ms ease, text-shadow 280ms ease;
+    }
+
+    .quality-label.active {
+      opacity: 1;
+      transform: translateY(-2px);
+      text-shadow: 0 0 15px rgba(102, 224, 255, 0.88);
+    }
+
+    .metrics {
+      width: min(100%, 630px);
+      margin: clamp(26px, 5vw, 38px) auto 0;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .metric {
+      min-width: 0;
+      padding: 13px 8px 12px;
+      border: 1px solid rgba(102, 224, 255, 0.22);
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      text-align: center;
+    }
+
+    .metric-name {
+      display: block;
+      color: var(--white);
+      font-size: 0.64rem;
+      font-weight: 850;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      display: block;
+      min-height: 1.2em;
+      margin-top: 7px;
+      color: var(--white);
+      font-size: clamp(1.04rem, 3.4vw, 1.44rem);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.045em;
+    }
+
+    .metric-unit {
+      color: var(--white);
+      font-size: 0.68em;
+      font-weight: 700;
+    }
+
+    .controls {
+      margin-top: 25px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .button {
+      min-height: 46px;
+      border: 1px solid rgba(102, 224, 255, 0.54);
+      border-radius: 999px;
+      padding: 0 19px;
+      color: var(--white);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.075em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease, border-color 160ms ease;
+    }
+
+    .button:hover:not(:disabled) {
+      border-color: var(--white);
+      transform: translateY(-2px);
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .button:focus-visible,
+    .slot:focus-visible,
+    .footer-link:focus-visible {
+      outline: 3px solid var(--white);
+      outline-offset: 3px;
+    }
+
+    .button:disabled {
+      cursor: not-allowed;
+      opacity: 0.43;
+    }
+
+    .button-primary {
+      min-width: min(100%, 222px);
+      border-color: rgba(102, 224, 255, 0.92);
+      background: linear-gradient(180deg, var(--excellent), var(--critical));
+      box-shadow: 0 12px 27px rgba(0, 0, 0, 0.60), inset 0 1px rgba(255, 255, 255, 0.37);
+    }
+
+    .button-secondary {
+      background: rgba(4, 34, 50, 0.92);
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .session-line {
+      min-height: 30px;
+      margin: 19px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--white);
+      font-size: 0.88rem;
+      font-weight: 720;
+      text-align: center;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--fair);
+      box-shadow: 0 0 0 4px rgba(20, 123, 156, 0.16);
+      transition: background 240ms ease, box-shadow 240ms ease;
+    }
+
+    .status-dot.ready {
+      background: var(--excellent);
+      box-shadow: 0 0 0 4px rgba(102, 224, 255, 0.14), 0 0 13px rgba(102, 224, 255, 0.53);
+    }
+
+    .status-dot.testing {
+      background: var(--good);
+      box-shadow: 0 0 0 4px rgba(39, 159, 190, 0.16), 0 0 13px rgba(102, 224, 255, 0.44);
+    }
+
+    .status-dot.warning {
+      background: var(--fair);
+      box-shadow: 0 0 0 4px rgba(20, 123, 156, 0.16), 0 0 13px rgba(39, 159, 190, 0.42);
+    }
+
+    .status-dot.error {
+      background: var(--critical);
+      box-shadow: 0 0 0 4px rgba(7, 50, 74, 0.24), 0 0 13px rgba(20, 123, 156, 0.35);
+    }
+
+    .countdown {
+      color: var(--white);
+      font-size: 1rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.05em;
+    }
+
+    .strip-section {
+      width: min(100%, 675px);
+      margin: 24px auto 0;
+    }
+
+    .strip {
+      display: grid;
+      grid-template-columns: repeat(60, minmax(0, 1fr));
+      align-items: end;
+      gap: clamp(2px, 0.48vw, 4px);
+      min-height: 39px;
+    }
+
+    .slot {
+      min-width: 0;
+      height: 15px;
+      border: 1px solid rgba(102, 224, 255, 0.18);
+      border-radius: 999px;
+      background: var(--future);
+      cursor: default;
+      transition:
+        height 260ms ease,
+        background 260ms ease,
+        box-shadow 260ms ease,
+        transform 160ms ease;
+    }
+
+    .slot[data-selectable="true"] {
+      cursor: pointer;
+    }
+
+    .slot[data-selectable="true"]:hover,
+    .slot[data-selectable="true"]:focus-visible {
+      transform: translateY(-2px);
+    }
+
+    .slot.active {
+      height: 30px;
+      border-color: var(--white);
+      background: var(--excellent);
+      box-shadow: 0 0 15px rgba(102, 224, 255, 0.78);
+    }
+
+    .slot.normal {
+      height: 21px;
+      border-color: transparent;
+      background: var(--excellent);
+    }
+
+    .slot.slow {
+      height: 24px;
+      border-color: transparent;
+      background: var(--good);
+    }
+
+    .slot.severe {
+      height: 27px;
+      border-color: transparent;
+      background: var(--fair);
+    }
+
+    .slot.lost {
+      height: 30px;
+      border-color: transparent;
+      background: var(--critical);
+      box-shadow: 0 0 10px rgba(39, 159, 190, 0.46);
+    }
+
+    .slot.selected {
+      outline: 2px solid var(--white);
+      outline-offset: 2px;
+    }
+
+    .slot-detail {
+      min-height: 3.35em;
+      margin: 13px 0 0;
+      padding: 10px 13px;
+      border: 1px solid rgba(102, 224, 255, 0.20);
+      border-radius: 12px;
+      color: var(--white);
+      background: rgba(0, 0, 0, 0.27);
+      font-size: 0.79rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .tooltip {
+      position: fixed;
+      z-index: 20;
+      max-width: min(290px, calc(100vw - 24px));
+      padding: 9px 11px;
+      border: 1px solid rgba(102, 224, 255, 0.58);
+      border-radius: 10px;
+      color: var(--white);
+      background: rgba(1, 13, 24, 0.98);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.62);
+      font-size: 0.76rem;
+      line-height: 1.4;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, calc(-100% - 10px));
+      transition: opacity 120ms ease;
+    }
+
+    .tooltip.visible {
+      opacity: 1;
+    }
+
+    .footer-links {
+      margin: 20px 0 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .footer-link {
+      color: var(--white);
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-underline-offset: 4px;
+      text-decoration-thickness: 1px;
+      transition: opacity 160ms ease;
+    }
+
+    .footer-link:hover {
+      opacity: 0.76;
+    }
+
+    .disclosure {
+      width: min(100%, 660px);
+      margin: 14px auto 0;
+      color: var(--white);
+      font-size: 0.72rem;
+      line-height: 1.55;
+      text-align: center;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding-inline: 13px;
+      }
+
+      .monitor {
+        padding: 20px 13px;
+        border-radius: 19px;
+      }
+
+      .quality-labels {
+        grid-template-columns: 1.4fr 1fr 0.82fr 0.95fr 1.55fr;
+        gap: 1px;
+      }
+
+      .quality-label {
+        font-size: 0.56rem;
+        letter-spacing: 0.02em;
+      }
+
+      .metrics {
+        gap: 6px;
+      }
+
+      .metric {
+        padding-inline: 4px;
+      }
+
+      .controls {
+        gap: 8px;
+      }
+
+      .button {
+        min-height: 44px;
+        padding-inline: 14px;
+      }
+
+      .strip {
+        gap: 2px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <h1 class="title">Internet Quality Test</h1>
+    <p class="subtitle">Live connection stability check · 5 minutes</p>
+
+    <section class="monitor" aria-labelledby="monitorHeading">
+      <h2 id="monitorHeading" class="sr-only">Live internet quality monitor</h2>
+
+      <div id="gauge" class="gauge" role="img" aria-label="Internet quality score: ready to begin">
+        <svg class="gauge-svg" viewBox="0 0 660 344" aria-hidden="true">
+          <path class="gauge-track" d="M 72 272 A 258 258 0 0 1 588 272"></path>
+
+<path id="bandCritical" class="gauge-band band-critical" d="M 72 272 A 258 258 0 0 1 177 66"></path>
+<path id="bandPoor" class="gauge-band band-poor" d="M 190 56 A 258 258 0 0 1 316 14"></path>
+<path id="bandFair" class="gauge-band band-fair" d="M 334 14 A 258 258 0 0 1 460 49"></path>
+<path id="bandGood" class="gauge-band band-good" d="M 473 57 A 258 258 0 0 1 563 178"></path>
+<path id="bandExcellent" class="gauge-band band-excellent" d="M 570 194 A 258 258 0 0 1 588 272"></path>
+          <line class="gauge-tick" x1="72" y1="272" x2="89" y2="272"></line>
+          <line class="gauge-tick" x1="588" y1="272" x2="571" y2="272"></line>
+
+          <text class="endpoint" x="55" y="307">0</text>
+          <text class="endpoint endpoint-right" x="605" y="307">100</text>
+
+          <g id="needleGroup" class="needle-group">
+            <line class="needle" x1="330" y1="272" x2="330" y2="73"></line>
+            <circle class="needle-tip" cx="330" cy="73" r="5"></circle>
+          </g>
+
+          <circle class="needle-hub-outer" cx="330" cy="272" r="17"></circle>
+          <circle class="needle-hub-inner" cx="330" cy="272" r="8"></circle>
+        </svg>
+
+        <div class="gauge-center">
+          <output id="scoreValue" class="score" aria-live="off">--</output>
+          <output id="qualityWord" class="quality-word" aria-live="polite">Ready</output>
+          <span class="quality-caption">Quality Score</span>
+        </div>
+      </div>
+
+      <div class="quality-labels" aria-hidden="true">
+        <span id="labelCritical" class="quality-label">Critical</span>
+        <span id="labelPoor" class="quality-label">Poor</span>
+        <span id="labelFair" class="quality-label">Fair</span>
+        <span id="labelGood" class="quality-label">Good</span>
+        <span id="labelExcellent" class="quality-label">Excellent</span>
+      </div>
+
+      <div class="metrics" aria-label="Current connection measurements">
+        <div class="metric">
+          <span class="metric-name">Ping</span>
+          <output id="pingValue" class="metric-value">—</output>
+        </div>
+        <div class="metric">
+          <span class="metric-name">Latency</span>
+          <output id="latencyValue" class="metric-value">—</output>
+        </div>
+        <div class="metric">
+          <span class="metric-name">Jitter</span>
+          <output id="jitterValue" class="metric-value">—</output>
+        </div>
+      </div>
+
+      <div class="controls" aria-label="Test controls">
+        <button id="startButton" class="button button-primary" type="button">Start 5-Min Test</button>
+        <button id="stopButton" class="button button-secondary" type="button" disabled>Stop</button>
+        <button id="resetButton" class="button button-secondary" type="button">Reset</button>
+      </div>
+
+      <p class="session-line" aria-live="polite">
+        <span id="statusDot" class="status-dot ready" aria-hidden="true"></span>
+        <span id="statusText">Ready to begin</span>
+        <span aria-hidden="true">·</span>
+        <output id="countdownValue" class="countdown">05:00</output>
+      </p>
+
+      <section class="strip-section" aria-labelledby="stripHeading">
+        <h3 id="stripHeading" class="sr-only">Five-minute stability strip</h3>
+        <div id="stabilityStrip" class="strip" role="list" aria-label="60-slot connection stability strip. No completed probes yet."></div>
+        <p id="slotDetail" class="slot-detail" aria-live="polite">
+          The latest probe result will appear here when testing begins.
+        </p>
+      </section>
+
+      <div class="footer-links">
+        <a class="footer-link" href="README.txt" download="README.txt">README &amp; Copyright Notice</a>
+      </div>
+
+      <p class="disclosure">
+        Measures browser HTTPS response timing and Probe Loss. Not an ICMP ping,
+        IP packet-loss, or speed test.
+      </p>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <script>
+    "use strict";
+
+    const CONFIG = Object.freeze({
+      TEST_DURATION_MS: 5 * 60 * 1000,
+      SLOT_INTERVAL_MS: 5 * 1000,
+      SLOT_COUNT: 60,
+      REQUEST_TIMEOUT_MS: 4 * 1000,
+      RETRY_DELAY_MS: 2 * 1000,
+      SOURCE_COOLDOWN_MS: 30 * 1000,
+      LATENCY_WINDOW: 6,
+      JITTER_PAIR_WINDOW: 5,
+      RELIABILITY_WINDOW: 12,
+      NORMAL_THRESHOLD_MS: 200,
+      SEVERE_THRESHOLD_MS: 750,
+      HEALTHY_RECOVERY_SLOTS: 3,
+      DISPLAY_DEADBAND: 1,
+      DETAIL_PIN_MS: 10 * 1000
+    });
+
+    const SOURCES = Object.freeze([
+      {
+        id: "google",
+        name: "Google",
+        url: "https://www.gstatic.com/generate_204"
+      },
+      {
+        id: "mozilla",
+        name: "Mozilla",
+        url: "https://detectportal.firefox.com/success.txt"
+      },
+      {
+        id: "microsoft",
+        name: "Microsoft",
+        url: "https://www.msftconnecttest.com/connecttest.txt"
+      }
+    ]);
+
+    const elements = {
+      gauge: document.getElementById("gauge"),
+      needleGroup: document.getElementById("needleGroup"),
+      scoreValue: document.getElementById("scoreValue"),
+      qualityWord: document.getElementById("qualityWord"),
+      bandCritical: document.getElementById("bandCritical"),
+      bandPoor: document.getElementById("bandPoor"),
+      bandFair: document.getElementById("bandFair"),
+      bandGood: document.getElementById("bandGood"),
+      bandExcellent: document.getElementById("bandExcellent"),
+      labelCritical: document.getElementById("labelCritical"),
+      labelPoor: document.getElementById("labelPoor"),
+      labelFair: document.getElementById("labelFair"),
+      labelGood: document.getElementById("labelGood"),
+      labelExcellent: document.getElementById("labelExcellent"),
+      pingValue: document.getElementById("pingValue"),
+      latencyValue: document.getElementById("latencyValue"),
+      jitterValue: document.getElementById("jitterValue"),
+      startButton: document.getElementById("startButton"),
+      stopButton: document.getElementById("stopButton"),
+      resetButton: document.getElementById("resetButton"),
+      statusDot: document.getElementById("statusDot"),
+      statusText: document.getElementById("statusText"),
+      countdownValue: document.getElementById("countdownValue"),
+      stabilityStrip: document.getElementById("stabilityStrip"),
+      slotDetail: document.getElementById("slotDetail"),
+      tooltip: document.getElementById("tooltip")
+    };
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const state = {
+      running: false,
+      pausedForVisibility: false,
+      sessionStartedAt: 0,
+      pausedAt: 0,
+      pausedDurationMs: 0,
+      nextSlotIndex: 0,
+      nextSlotDueAt: 0,
+      activeSlotIndex: null,
+      activeController: null,
+      schedulerTimer: null,
+      countdownTimer: null,
+      selectedDetailTimer: null,
+      sources: SOURCES.map((source) => ({ ...source, cooldownUntil: 0 })),
+      activeSourceIndex: 0,
+      records: [],
+      disruptionActive: false,
+      normalRecoveryCount: 0,
+      selectedSlotIndex: null,
+      detailPinned: false,
+      display: {
+        current: null,
+        target: null,
+        lastFrameTime: 0,
+        rafId: null,
+        activeBand: "Ready",
+        criticalMotion: false
+      }
+    };
+
+    function clamp(value, minimum, maximum) {
+      return Math.min(maximum, Math.max(minimum, value));
+    }
+
+    function average(values) {
+      if (!values.length) return null;
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function median(values) {
+      if (!values.length) return null;
+      const ordered = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(ordered.length / 2);
+
+      return ordered.length % 2
+        ? ordered[middle]
+        : (ordered[middle - 1] + ordered[middle]) / 2;
+    }
+
+    function formatTime(milliseconds) {
+      const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+      const minutes = Math.floor(seconds / 60);
+      return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    }
+
+    function formatMeasurement(value) {
+      return Number.isFinite(value)
+        ? `${Math.round(value)} <span class="metric-unit">ms</span>`
+        : "—";
+    }
+
+    function setStatus(text, type = "ready") {
+      elements.statusText.textContent = text;
+      elements.statusDot.className = `status-dot ${type}`;
+    }
+
+    function setButtons() {
+      elements.startButton.disabled = state.running || state.pausedForVisibility;
+      elements.stopButton.disabled = !state.running && !state.pausedForVisibility;
+      elements.resetButton.disabled = state.running || state.pausedForVisibility;
+    }
+
+    function sourceUrl(source) {
+      const separator = source.url.includes("?") ? "&" : "?";
+      return `${source.url}${separator}_iqm=${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+
+    function classifyDuration(durationMs) {
+      if (durationMs <= CONFIG.NORMAL_THRESHOLD_MS) return "normal";
+      if (durationMs < CONFIG.SEVERE_THRESHOLD_MS) return "slow";
+      return "severe";
+    }
+
+    function bandForScore(score, priorBand = null) {
+      if (!Number.isFinite(score)) return "Measuring";
+
+      if (priorBand === "Excellent" && score >= 88) return "Excellent";
+      if (priorBand === "Good" && score >= 73 && score < 92) return "Good";
+      if (priorBand === "Fair" && score >= 53 && score < 77) return "Fair";
+      if (priorBand === "Poor" && score >= 28 && score < 57) return "Poor";
+      if (priorBand === "Critical" && score < 32) return "Critical";
+
+      if (score >= 90) return "Excellent";
+      if (score >= 75) return "Good";
+      if (score >= 55) return "Fair";
+      if (score >= 30) return "Poor";
+      return "Critical";
+    }
+
+    function normalizedScore(value, goodAt, poorAt) {
+      if (!Number.isFinite(value)) return null;
+      if (value <= goodAt) return 100;
+      if (value >= poorAt) return 0;
+      return 100 * (1 - (value - goodAt) / (poorAt - goodAt));
+    }
+
+    function reliabilityScore(recent) {
+      if (!recent.length) return null;
+
+      const lost = recent.filter((record) => record.outcome === "lost").length;
+      if (lost === 0) return 100;
+      if (lost === 1) return 82;
+      if (lost === 2) return 60;
+      if (lost === 3) return 35;
+      return 10;
+    }
+
+    function jitterScore(jitter) {
+      if (!Number.isFinite(jitter)) return null;
+      if (jitter <= 10) return 100;
+      if (jitter <= 20) return 85 + ((20 - jitter) / 10) * 15;
+      if (jitter <= 40) return 60 + ((40 - jitter) / 20) * 25;
+      if (jitter <= 80) return 30 + ((80 - jitter) / 40) * 30;
+      if (jitter <= 150) return 10 + ((150 - jitter) / 70) * 20;
+      return 0;
+    }
+
+    function spikeScore(recent) {
+      if (!recent.length) return null;
+
+      const critical = recent.filter(
+        (record) => Number.isFinite(record.durationMs) && record.durationMs >= CONFIG.SEVERE_THRESHOLD_MS
+      ).length;
+      const severe = recent.filter((record) => record.outcome === "severe").length;
+      const slow = recent.filter((record) => record.outcome === "slow").length;
+
+      if (critical >= 2 || severe >= 3) return 10;
+      if (critical === 1) return 25;
+      if (severe >= 2) return 30;
+      if (severe === 1) return 55;
+      if (slow >= 3) return 55;
+      if (slow === 2) return 70;
+      if (slow === 1) return 85;
+      return 100;
+    }
+
+    function recoveryScore() {
+      if (!state.disruptionActive) return 100;
+      return clamp(
+        (state.normalRecoveryCount / CONFIG.HEALTHY_RECOVERY_SLOTS) * 100,
+        0,
+        100
+      );
+    }
+
+    function lossStreak() {
+      let streak = 0;
+
+      for (let index = state.records.length - 1; index >= 0; index -= 1) {
+        if (state.records[index].outcome !== "lost") break;
+        streak += 1;
+      }
+
+      return streak;
+    }
+
+    function safetyCap(recent) {
+      const losses = recent.filter((record) => record.outcome === "lost").length;
+      const last = state.records.at(-1);
+      const streak = lossStreak();
+      let cap = 100;
+
+      if (losses >= 1) cap = Math.min(cap, 89);
+      if (losses >= 2) cap = Math.min(cap, 74);
+      if (streak >= 2) cap = Math.min(cap, 54);
+      if (streak >= 3) cap = Math.min(cap, 29);
+      if (last?.multiSourceFailure) cap = Math.min(cap, 39);
+      if (last?.allSourcesUnavailable) cap = Math.min(cap, 15);
+
+      return cap;
+    }
+
+    function calculateMetrics() {
+      const successful = state.records.filter((record) => Number.isFinite(record.durationMs));
+      const latest = successful.at(-1) || null;
+
+      const comparable = latest
+        ? successful
+            .filter((record) => record.sourceId === latest.sourceId)
+            .slice(-CONFIG.LATENCY_WINDOW)
+        : [];
+
+      const differences = [];
+
+      for (let index = 1; index < comparable.length; index += 1) {
+        differences.push(Math.abs(comparable[index].durationMs - comparable[index - 1].durationMs));
+      }
+
+      return {
+        ping: latest?.durationMs ?? null,
+        latency: median(comparable.map((record) => record.durationMs)),
+        jitter: average(differences.slice(-CONFIG.JITTER_PAIR_WINDOW)),
+        recent: state.records.slice(-CONFIG.RELIABILITY_WINDOW)
+      };
+    }
+
+    function calculateQuality() {
+      const metrics = calculateMetrics();
+      const weightedComponents = [
+        [reliabilityScore(metrics.recent), 0.30],
+        [normalizedScore(metrics.latency, 75, 750), 0.25],
+        [jitterScore(metrics.jitter), 0.20],
+        [spikeScore(metrics.recent), 0.20],
+        [recoveryScore(), 0.05]
+      ];
+
+      const usable = weightedComponents.filter(([score]) => Number.isFinite(score));
+
+      /*
+        Warm-up uses only actual, available evidence. It does not add a score
+        because time passes or because a test slot exists.
+      */
+      if (usable.length < 2) {
+        return { metrics, rawScore: null, finalScore: null, cap: null };
+      }
+
+      const weightedTotal = usable.reduce(
+        (sum, [score, weight]) => sum + score * weight,
+        0
+      );
+      const weightTotal = usable.reduce((sum, [, weight]) => sum + weight, 0);
+      const rawScore = weightedTotal / weightTotal;
+      const cap = safetyCap(metrics.recent);
+
+      return {
+        metrics,
+        rawScore,
+        finalScore: Math.min(rawScore, cap),
+        cap
+      };
+    }
+
+    function updateMetricDisplay(metrics) {
+      elements.pingValue.innerHTML = formatMeasurement(metrics.ping);
+      elements.latencyValue.innerHTML = formatMeasurement(metrics.latency);
+      elements.jitterValue.innerHTML = formatMeasurement(metrics.jitter);
+    }
+
+    function setActiveBand(activeBand) {
+      const pairs = [
+        ["Critical", elements.bandCritical, elements.labelCritical],
+        ["Poor", elements.bandPoor, elements.labelPoor],
+        ["Fair", elements.bandFair, elements.labelFair],
+        ["Good", elements.bandGood, elements.labelGood],
+        ["Excellent", elements.bandExcellent, elements.labelExcellent]
+      ];
+
+      for (const [band, path, label] of pairs) {
+        const isActive = band === activeBand;
+        path.classList.toggle("active", isActive);
+        label.classList.toggle("active", isActive);
+      }
+    }
+
+    function renderGauge(score, forcedWord = null) {
+      if (!Number.isFinite(score)) {
+        elements.scoreValue.textContent = "--";
+        elements.qualityWord.textContent = forcedWord || "Ready";
+        elements.needleGroup.style.transform = "rotate(-90deg)";
+        setActiveBand(null);
+        elements.gauge.setAttribute("aria-label", "Internet quality score: ready to begin");
+        return;
+      }
+
+      const safeScore = clamp(score, 0, 100);
+      const roundedScore = Math.round(safeScore);
+      const band = forcedWord || bandForScore(safeScore, state.display.activeBand);
+
+      /*
+        Score mapping:
+        0 → -90° = left endpoint
+        50 → 0°  = top center
+        100 → 90° = right endpoint
+      */
+      const needleAngle = -90 + safeScore * 1.8;
+
+      state.display.activeBand = band;
+      elements.needleGroup.style.transform = `rotate(${needleAngle}deg)`;
+      elements.scoreValue.textContent = String(roundedScore);
+      elements.qualityWord.textContent = band;
+      setActiveBand(
+        ["Critical", "Poor", "Fair", "Good", "Excellent"].includes(band) ? band : null
+      );
+      elements.gauge.setAttribute(
+        "aria-label",
+        `Internet quality score ${roundedScore}, ${band}`
+      );
+    }
+
+    function animateGauge(frameTime) {
+      const display = state.display;
+
+      if (!Number.isFinite(display.current) || !Number.isFinite(display.target)) {
+        display.rafId = null;
+        return;
+      }
+
+      if (!display.lastFrameTime) display.lastFrameTime = frameTime;
+
+      const elapsed = Math.min(64, frameTime - display.lastFrameTime);
+      display.lastFrameTime = frameTime;
+      const difference = display.target - display.current;
+
+      if (Math.abs(difference) < 0.08) {
+        display.current = display.target;
+        renderGauge(display.current);
+        display.rafId = null;
+        return;
+      }
+
+      const settleMs = display.criticalMotion
+        ? 220
+        : difference < 0
+          ? 390
+          : 820;
+
+      const interpolation = 1 - Math.exp(-elapsed / settleMs);
+      display.current += difference * interpolation;
+
+      renderGauge(display.current);
+      display.rafId = window.requestAnimationFrame(animateGauge);
+    }
+
+    function setGaugeTarget(target, { immediate = false, critical = false } = {}) {
+      if (!Number.isFinite(target)) {
+        if (state.display.rafId) window.cancelAnimationFrame(state.display.rafId);
+
+        state.display.current = null;
+        state.display.target = null;
+        state.display.lastFrameTime = 0;
+        state.display.rafId = null;
+        renderGauge(null, state.records.length ? "Starting" : "Ready");
+        return;
+      }
+
+      const validTarget = clamp(target, 0, 100);
+
+      if (!Number.isFinite(state.display.current) || immediate || reducedMotion) {
+        if (state.display.rafId) window.cancelAnimationFrame(state.display.rafId);
+
+        state.display.current = validTarget;
+        state.display.target = validTarget;
+        state.display.lastFrameTime = 0;
+        state.display.rafId = null;
+        renderGauge(validTarget);
+        return;
+      }
+
+      if (Math.abs(validTarget - state.display.target) < CONFIG.DISPLAY_DEADBAND) {
+        return;
+      }
+
+      state.display.target = validTarget;
+      state.display.criticalMotion = critical;
+      state.display.lastFrameTime = 0;
+
+      if (!state.display.rafId) {
+        state.display.rafId = window.requestAnimationFrame(animateGauge);
+      }
+    }
+
+    function updateQualityDisplay({ immediate = false } = {}) {
+      const quality = calculateQuality();
+      updateMetricDisplay(quality.metrics);
+
+      setGaugeTarget(quality.finalScore, {
+        immediate,
+        critical: quality.cap !== null && quality.cap <= 39
+      });
+
+      return quality;
+    }
+
+    function slotExplanation(record, latest = false) {
+      const prefix = latest ? "Latest slot" : "Slot";
+      const number = record.slotIndex + 1;
+
+      if (record.outcome === "normal") {
+        return `${prefix} ${number} · Healthy · ${Math.round(record.durationMs)} ms HTTPS response.`;
+      }
+
+      if (record.outcome === "slow") {
+        return `${prefix} ${number} · Slow · ${Math.round(record.durationMs)} ms response. Higher than the normal-response threshold.`;
+      }
+
+      if (record.outcome === "severe") {
+        return `${prefix} ${number} · Severe · ${Math.round(record.durationMs)} ms response. This counts as a major lag spike.`;
+      }
+
+      const failureText = record.multiSourceFailure
+        ? "The browser did not complete the HTTPS check after retry and source failover."
+        : "The browser did not complete the HTTPS check after the allowed retry.";
+
+      return `${prefix} ${number} · Probe Lost · ${failureText} This is not confirmed IP packet loss.`;
+    }
+
+    function latestRecord() {
+      return state.records.at(-1) || null;
+    }
+
+    function clearDetailPin() {
+      window.clearTimeout(state.selectedDetailTimer);
+      state.selectedDetailTimer = null;
+      state.detailPinned = false;
+      state.selectedSlotIndex = null;
+      hideTooltip();
+
+      const latest = latestRecord();
+      elements.slotDetail.textContent = latest
+        ? slotExplanation(latest, true)
+        : "The latest probe result will appear here when testing begins.";
+
+      renderStabilityStrip();
+    }
+
+    function pinDetail(index, showTooltip = false) {
+      const record = state.records[index];
+      if (!record) return;
+
+      window.clearTimeout(state.selectedDetailTimer);
+      state.selectedSlotIndex = index;
+      state.detailPinned = true;
+      elements.slotDetail.textContent = slotExplanation(record, false);
+
+      renderStabilityStrip();
+
+      if (showTooltip) {
+        const slot = elements.stabilityStrip.children[index];
+        if (slot) showTooltip(slot, slotExplanation(record, false));
+      }
+
+      state.selectedDetailTimer = window.setTimeout(clearDetailPin, CONFIG.DETAIL_PIN_MS);
+    }
+
+    function hideTooltip() {
+      elements.tooltip.classList.remove("visible");
+      elements.tooltip.setAttribute("aria-hidden", "true");
+    }
+
+    function showTooltip(slot, text) {
+      const rect = slot.getBoundingClientRect();
+      elements.tooltip.textContent = text;
+      elements.tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      elements.tooltip.style.top = `${rect.top}px`;
+      elements.tooltip.classList.add("visible");
+      elements.tooltip.setAttribute("aria-hidden", "false");
+    }
+
+    function buildStabilityStrip() {
+      const fragment = document.createDocumentFragment();
+
+      for (let index = 0; index < CONFIG.SLOT_COUNT; index += 1) {
+        const slot = document.createElement("button");
+
+        slot.type = "button";
+        slot.className = "slot";
+        slot.dataset.index = String(index);
+        slot.disabled = true;
+        slot.tabIndex = -1;
+        slot.setAttribute("role", "listitem");
+        slot.setAttribute("aria-label", `Slot ${index + 1}, not yet tested`);
+
+        slot.addEventListener("mouseenter", () => {
+          if (state.records[index]) pinDetail(index, true);
+        });
+
+        slot.addEventListener("focus", () => {
+          if (state.records[index]) pinDetail(index, true);
+        });
+
+        slot.addEventListener("click", () => {
+          if (state.records[index]) pinDetail(index, true);
+        });
+
+        slot.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            clearDetailPin();
+            slot.blur();
+          }
+        });
+
+        fragment.appendChild(slot);
+      }
+
+      elements.stabilityStrip.replaceChildren(fragment);
+    }
+
+    function renderStabilityStrip() {
+      const slots = elements.stabilityStrip.children;
+
+      for (let index = 0; index < CONFIG.SLOT_COUNT; index += 1) {
+        const slot = slots[index];
+        const record = state.records[index];
+
+        slot.className = "slot";
+        slot.disabled = !record;
+        slot.tabIndex = record ? 0 : -1;
+        slot.dataset.selectable = record ? "true" : "false";
+
+        if (state.activeSlotIndex === index) {
+          slot.classList.add("active");
+          slot.setAttribute("aria-label", `Slot ${index + 1}, probe in progress`);
+        } else if (record) {
+          slot.classList.add(record.outcome);
+          slot.setAttribute("aria-label", slotExplanation(record, false));
+
+          if (state.selectedSlotIndex === index) {
+            slot.classList.add("selected");
+          }
+        } else {
+          slot.setAttribute("aria-label", `Slot ${index + 1}, not yet tested`);
+        }
+      }
+
+      const lost = state.records.filter((record) => record.outcome === "lost").length;
+
+      elements.stabilityStrip.setAttribute(
+        "aria-label",
+        `${state.records.length} of ${CONFIG.SLOT_COUNT} probe slots finalized; ${lost} lost browser probes.`
+      );
+    }
+
+    function availableSourceIndex(startIndex = state.activeSourceIndex) {
+      const now = performance.now();
+
+      for (let offset = 0; offset < state.sources.length; offset += 1) {
+        const index = (startIndex + offset) % state.sources.length;
+
+        if (state.sources[index].cooldownUntil <= now) {
+          return index;
+        }
+      }
+
+      return null;
+    }
+
+    function abortActiveProbe() {
+      if (state.activeController) {
+        state.activeController.abort();
+        state.activeController = null;
+      }
+    }
+
+    function wait(milliseconds) {
+      return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+    }
+
+    async function runAttempt(source) {
+      const controller = new AbortController();
+      state.activeController = controller;
+
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        CONFIG.REQUEST_TIMEOUT_MS
+      );
+
+      const startedAt = performance.now();
+
+      try {
+        /*
+          The app does not inspect response bodies. A completed no-cors fetch
+          only supplies browser-visible completion timing for this HTTPS probe.
+        */
+        await fetch(sourceUrl(source), {
+          method: "GET",
+          mode: "no-cors",
+          cache: "no-store",
+          credentials: "omit",
+          redirect: "follow",
+          signal: controller.signal
+        });
+
+        return {
+          ok: true,
+          sourceId: source.id,
+          durationMs: performance.now() - startedAt
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          sourceId: source.id,
+          durationMs: null,
+          errorName: error?.name || "FetchError"
+        };
+      } finally {
+        window.clearTimeout(timeoutId);
+
+        if (state.activeController === controller) {
+          state.activeController = null;
+        }
+      }
+    }
+
+    function updateRecovery(record) {
+      if (record.outcome === "normal") {
+        if (state.disruptionActive) {
+          state.normalRecoveryCount += 1;
+
+          if (state.normalRecoveryCount >= CONFIG.HEALTHY_RECOVERY_SLOTS) {
+            state.disruptionActive = false;
+            state.normalRecoveryCount = CONFIG.HEALTHY_RECOVERY_SLOTS;
+          }
+        }
+
+        return;
+      }
+
+      state.disruptionActive = true;
+      state.normalRecoveryCount = 0;
+    }
+
+    function statusForRecord(record) {
+      if (record.outcome === "lost") {
+        if (record.allSourcesUnavailable) {
+          return ["Available probe sources unreachable", "error"];
+        }
+
+        if (record.multiSourceFailure) {
+          return ["Probe Loss after source failover", "error"];
+        }
+
+        return ["Probe Loss recorded", "error"];
+      }
+
+      if (record.fallbackUsed) {
+        return ["Switched source after probe failure", "warning"];
+      }
+
+      if (record.outcome === "severe") {
+        return ["Major lag spike detected", "warning"];
+      }
+
+      if (record.outcome === "slow") {
+        return ["Slow response detected", "warning"];
+      }
+
+      if (state.records.length < CONFIG.LATENCY_WINDOW) {
+        return ["Building baseline", "testing"];
+      }
+
+      return ["Monitoring quality", "testing"];
+    }
+
+    async function runProbeSlot(slotIndex) {
+      if (!state.running || state.pausedForVisibility || slotIndex !== state.nextSlotIndex) {
+        return;
+      }
+
+      state.activeSlotIndex = slotIndex;
+      renderStabilityStrip();
+
+      const attemptedSourceIds = [];
+      let sourceIndex = availableSourceIndex();
+      let result = null;
+
+      /*
+        A scheduled slot has at most:
+        - primary source attempt,
+        - one retry on that same source,
+        - one fallback source attempt.
+        The combined result still creates only one probe record.
+      */
+      if (sourceIndex !== null) {
+        let source = state.sources[sourceIndex];
+        attemptedSourceIds.push(source.id);
+
+        result = await runAttempt(source);
+
+        if (!result.ok && state.running && !state.pausedForVisibility) {
+          await wait(CONFIG.RETRY_DELAY_MS);
+
+          if (state.running && !state.pausedForVisibility) {
+            result = await runAttempt(source);
+          }
+        }
+
+        if (!result.ok && state.running && !state.pausedForVisibility) {
+          source.cooldownUntil = performance.now() + CONFIG.SOURCE_COOLDOWN_MS;
+
+          const fallbackIndex = availableSourceIndex(
+            (sourceIndex + 1) % state.sources.length
+          );
+
+          if (fallbackIndex !== null && fallbackIndex !== sourceIndex) {
+            sourceIndex = fallbackIndex;
+            source = state.sources[sourceIndex];
+            attemptedSourceIds.push(source.id);
+
+            result = await runAttempt(source);
+
+            if (!result.ok) {
+              source.cooldownUntil = performance.now() + CONFIG.SOURCE_COOLDOWN_MS;
+            }
+          }
+        }
+      }
+
+      /*
+        Stop, Reset, hidden-tab pause, or end-of-test interruption is not
+        finalized as Probe Loss. Only a completed slot decision can be red.
+      */
+      if (!state.running || state.pausedForVisibility) {
+        state.activeSlotIndex = null;
+        renderStabilityStrip();
+        return;
+      }
+
+      const multiSourceFailure = attemptedSourceIds.length >= 2 && !result?.ok;
+      const allSourcesUnavailable =
+        attemptedSourceIds.length >= state.sources.length && !result?.ok;
+
+      const record = result?.ok
+        ? {
+            slotIndex,
+            sourceId: result.sourceId,
+            durationMs: result.durationMs,
+            outcome: classifyDuration(result.durationMs),
+            attemptedSourceIds,
+            fallbackUsed: attemptedSourceIds.length > 1,
+            multiSourceFailure: false,
+            allSourcesUnavailable: false,
+            finalizedAt: performance.now()
+          }
+        : {
+            slotIndex,
+            sourceId: attemptedSourceIds.at(-1) || null,
+            durationMs: null,
+            outcome: "lost",
+            attemptedSourceIds,
+            fallbackUsed: attemptedSourceIds.length > 1,
+            multiSourceFailure,
+            allSourcesUnavailable,
+            finalizedAt: performance.now()
+          };
+
+      updateRecovery(record);
+      state.records.push(record);
+      state.nextSlotIndex += 1;
+      state.activeSlotIndex = null;
+
+      if (sourceIndex !== null) {
+        state.activeSourceIndex = sourceIndex;
+      }
+
+      /*
+        Detail follows the latest result unless the user is inspecting a prior
+        slot during its protected 10-second pin window.
+      */
+      if (!state.detailPinned) {
+        elements.slotDetail.textContent = slotExplanation(record, true);
+      }
+
+      const [statusText, statusType] = statusForRecord(record);
+      setStatus(statusText, statusType);
+
+      renderStabilityStrip();
+      updateQualityDisplay();
+
+      if (state.nextSlotIndex >= CONFIG.SLOT_COUNT) {
+        finishSession("Complete · 5-minute test finished");
+      }
+    }
+
+    function scheduleNextSlot() {
+      window.clearTimeout(state.schedulerTimer);
+
+      if (!state.running || state.pausedForVisibility) return;
+
+      const activeElapsed =
+        performance.now() - state.sessionStartedAt - state.pausedDurationMs;
+
+      if (
+        activeElapsed >= CONFIG.TEST_DURATION_MS ||
+        state.nextSlotIndex >= CONFIG.SLOT_COUNT
+      ) {
+        finishSession("Complete · 5-minute test finished");
+        return;
+      }
+
+      const delay = Math.max(0, state.nextSlotDueAt - performance.now());
+
+      state.schedulerTimer = window.setTimeout(async () => {
+        if (!state.running || state.pausedForVisibility) return;
+
+        const slotIndex = state.nextSlotIndex;
+        await runProbeSlot(slotIndex);
+
+        /*
+          Preserve the intended five-second cadence while ensuring probes
+          never overlap. A delayed slot does not create a parallel request.
+        */
+        state.nextSlotDueAt += CONFIG.SLOT_INTERVAL_MS;
+
+        while (state.nextSlotDueAt < performance.now() - CONFIG.SLOT_INTERVAL_MS) {
+          state.nextSlotDueAt += CONFIG.SLOT_INTERVAL_MS;
+        }
+
+        scheduleNextSlot();
+      }, delay);
+    }
+
+    function updateCountdown() {
+      if (!state.running && !state.pausedForVisibility) return;
+
+      const now = state.pausedForVisibility ? state.pausedAt : performance.now();
+      const elapsed = now - state.sessionStartedAt - state.pausedDurationMs;
+      const remaining = CONFIG.TEST_DURATION_MS - elapsed;
+
+      elements.countdownValue.textContent = formatTime(remaining);
+
+      if (remaining <= 0 && state.running) {
+        finishSession("Complete · 5-minute test finished");
+      }
+    }
+
+    function beginCountdown() {
+      window.clearInterval(state.countdownTimer);
+      updateCountdown();
+      state.countdownTimer = window.setInterval(updateCountdown, 250);
+    }
+
+    function clearTimers() {
+      window.clearTimeout(state.schedulerTimer);
+      window.clearInterval(state.countdownTimer);
+      window.clearTimeout(state.selectedDetailTimer);
+
+      state.schedulerTimer = null;
+      state.countdownTimer = null;
+      state.selectedDetailTimer = null;
+    }
+
+    function resetSession({ preparing = false } = {}) {
+      abortActiveProbe();
+      clearTimers();
+
+      if (state.display.rafId) {
+        window.cancelAnimationFrame(state.display.rafId);
+      }
+
+      state.running = false;
+      state.pausedForVisibility = false;
+      state.sessionStartedAt = 0;
+      state.pausedAt = 0;
+      state.pausedDurationMs = 0;
+      state.nextSlotIndex = 0;
+      state.nextSlotDueAt = 0;
+      state.activeSlotIndex = null;
+      state.activeController = null;
+      state.sources = SOURCES.map((source) => ({ ...source, cooldownUntil: 0 }));
+      state.activeSourceIndex = 0;
+      state.records = [];
+      state.disruptionActive = false;
+      state.normalRecoveryCount = 0;
+      state.selectedSlotIndex = null;
+      state.detailPinned = false;
+      state.display = {
+        current: null,
+        target: null,
+        lastFrameTime: 0,
+        rafId: null,
+        activeBand: "Ready",
+        criticalMotion: false
+      };
+
+      elements.countdownValue.textContent = "05:00";
+      elements.slotDetail.textContent =
+        "The latest probe result will appear here when testing begins.";
+
+      updateMetricDisplay({ ping: null, latency: null, jitter: null });
+      renderGauge(null, "Ready");
+      renderStabilityStrip();
+      hideTooltip();
+      setStatus(preparing ? "Preparing test" : "Ready to begin", "ready");
+      setButtons();
+    }
+
+    function startSession() {
+      if (state.running || state.pausedForVisibility) return;
+
+      resetSession({ preparing: true });
+
+      /*
+        Evidence-only start: the display is explicitly zero. It can rise only
+        after real completed probes produce a calculated target score.
+      */
+      state.display.current = 0;
+      state.display.target = 0;
+      renderGauge(0, "Starting");
+
+      state.running = true;
+      state.sessionStartedAt = performance.now();
+      state.nextSlotDueAt = state.sessionStartedAt;
+
+      setStatus("Building baseline", "testing");
+      setButtons();
+      beginCountdown();
+      scheduleNextSlot();
+    }
+
+    function stopSession(message = "Test stopped by user") {
+      if (!state.running && !state.pausedForVisibility) return;
+
+      state.running = false;
+      state.pausedForVisibility = false;
+
+      abortActiveProbe();
+      clearTimers();
+
+      state.activeSlotIndex = null;
+      state.detailPinned = false;
+      state.selectedSlotIndex = null;
+
+      const latest = latestRecord();
+      elements.slotDetail.textContent = latest
+        ? slotExplanation(latest, true)
+        : "The latest probe result will appear here when testing begins.";
+
+      renderStabilityStrip();
+      updateQualityDisplay({ immediate: true });
+      hideTooltip();
+      setStatus(message, "ready");
+      setButtons();
+    }
+
+    function finishSession(message) {
+      if (!state.running) return;
+
+      state.running = false;
+      abortActiveProbe();
+      clearTimers();
+
+      state.activeSlotIndex = null;
+      state.detailPinned = false;
+      state.selectedSlotIndex = null;
+      elements.countdownValue.textContent = "00:00";
+
+      const latest = latestRecord();
+      elements.slotDetail.textContent = latest
+        ? slotExplanation(latest, true)
+        : "The latest probe result will appear here when testing begins.";
+
+      renderStabilityStrip();
+      updateQualityDisplay({ immediate: true });
+      hideTooltip();
+      setStatus(message, "ready");
+      setButtons();
+    }
+
+    function pauseForHiddenTab() {
+      if (!state.running || document.visibilityState !== "hidden") return;
+
+      state.pausedForVisibility = true;
+      state.pausedAt = performance.now();
+
+      abortActiveProbe();
+      window.clearTimeout(state.schedulerTimer);
+      window.clearInterval(state.countdownTimer);
+
+      state.activeSlotIndex = null;
+      renderStabilityStrip();
+      setStatus("Paused while tab is hidden", "warning");
+      setButtons();
+    }
+
+    function resumeFromHiddenTab() {
+      if (!state.pausedForVisibility || document.visibilityState !== "visible") return;
+
+      state.pausedDurationMs += performance.now() - state.pausedAt;
+      state.pausedAt = 0;
+      state.pausedForVisibility = false;
+
+      if (state.nextSlotDueAt < performance.now()) {
+        state.nextSlotDueAt = performance.now();
+      }
+
+      setStatus(
+        state.records.length < CONFIG.LATENCY_WINDOW
+          ? "Building baseline"
+          : "Monitoring quality",
+        "testing"
+      );
+
+      setButtons();
+      beginCountdown();
+      scheduleNextSlot();
+    }
+
+    elements.startButton.addEventListener("click", startSession);
+    elements.stopButton.addEventListener("click", () => stopSession());
+    elements.resetButton.addEventListener("click", () => resetSession());
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        pauseForHiddenTab();
+      } else {
+        resumeFromHiddenTab();
+      }
+    });
+
+    window.addEventListener("beforeunload", abortActiveProbe);
+
+    buildStabilityStrip();
+    resetSession();
+  </script>
+</body>
+</html>
